@@ -10,14 +10,18 @@
 	<string>CoolClean Mode</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.coolcleanmode.app</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>3</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
-	<key>NSAppleEventsUsageDescription</key>
-	<string>CoolClean Mode needs permission to monitor keyboard and trackpad input to safely disable them while you clean your devices.</string>
 	<key>NSAccessibilityUsageDescription</key>
 	<string>CoolClean Mode requires accessibility access to temporarily block keyboard and trackpad input while allowing mouse input. This ensures you can safely clean your keyboard and trackpad without accidentally triggering actions.</string>
 	<key>NSInputMonitoringUsageDescription</key>
