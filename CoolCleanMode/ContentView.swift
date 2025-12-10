@@ -9,6 +9,8 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var inputBlocker = InputBlocker()
+    @State private var activationError: InputBlockerActivationError?
+    @State private var showAccessibilityHelp = false
 
     var body: some View {
         ZStack {
@@ -67,7 +69,7 @@ struct ContentView: View {
 
                     // Start button
                     Button(action: {
-                        inputBlocker.startCleaningMode()
+                        activationError = inputBlocker.startCleaningMode()
                     }) {
                         HStack {
                             Image(systemName: "sparkles")
@@ -168,6 +170,57 @@ struct ContentView: View {
             .padding(40)
         }
         .frame(width: 600, height: 700)
+        .alert(item: $activationError) { error in
+            switch error {
+            case .accessibilityNotGranted:
+                Alert(
+                    title: Text("Enable Accessibility Access"),
+                    message: Text("CoolClean Mode needs Accessibility and Input Monitoring permission so it can block keyboard, trackpad, and mouse clicks. Tap Open Settings, then click + to add CoolClean Mode and toggle it on."),
+                    primaryButton: .default(Text("Open Settings")) {
+                        inputBlocker.openSystemPreferences()
+                        showAccessibilityHelp = true
+                    },
+                    secondaryButton: .cancel(Text("Not Now")) {
+                        activationError = nil
+                    }
+                )
+            case .eventTapCreationFailed:
+                Alert(
+                    title: Text("Unable to Start Cleaning Mode"),
+                    message: Text("macOS blocked the input monitor. Please enable Accessibility permission, then quit and relaunch before trying again."),
+                    dismissButton: .default(Text("OK")) {
+                        activationError = nil
+                    }
+                )
+            }
+        }
+        .sheet(isPresented: $showAccessibilityHelp) {
+            VStack(spacing: 20) {
+                Text("Add CoolClean Mode to Accessibility")
+                    .font(.title2.bold())
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("1. In System Settings → Privacy & Security → Accessibility, unlock to make changes.")
+                    Text("2. Click the + button, choose CoolClean Mode.app, and click Open.")
+                    Text("3. Toggle CoolClean Mode on.")
+                    Text("4. Return here and tap Start Cleaning Mode again.")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Button("Show App in Finder") {
+                    inputBlocker.revealAppInFinder()
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button("Done") {
+                    showAccessibilityHelp = false
+                    activationError = nil
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(24)
+            .frame(minWidth: 420)
+        }
     }
 }
 

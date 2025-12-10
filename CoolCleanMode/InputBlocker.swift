@@ -10,6 +10,13 @@ import Cocoa
 import Carbon
 import ApplicationServices
 
+enum InputBlockerActivationError: Int, Identifiable {
+    case accessibilityNotGranted
+    case eventTapCreationFailed
+
+    var id: Int { rawValue }
+}
+
 class InputBlocker: ObservableObject {
     @Published var isCleaningModeActive = false
 
@@ -23,6 +30,11 @@ class InputBlocker: ObservableObject {
         kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
     ] as CFDictionary
 
+    func revealAppInFinder() {
+        let appURL = Bundle.main.bundleURL
+        NSWorkspace.shared.activateFileViewerSelecting([appURL])
+    }
+
     func openSystemPreferences() {
         // Open Privacy & Security settings
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
@@ -30,13 +42,13 @@ class InputBlocker: ObservableObject {
         }
     }
 
-    func startCleaningMode() {
-        guard !isCleaningModeActive else { return }
+    func startCleaningMode() -> InputBlockerActivationError? {
+        guard !isCleaningModeActive else { return nil }
 
         // Trigger a single, system-managed accessibility prompt if permission is missing
         guard AXIsProcessTrustedWithOptions(accessibilityPromptOptions) else {
             print("❌ Accessibility permission required - prompting user via System Settings")
-            return
+            return .accessibilityNotGranted
         }
 
         // Try to create event tap - this is the definitive test for permissions
@@ -65,7 +77,7 @@ class InputBlocker: ObservableObject {
         ) else {
             // Event tap creation failed - permissions not granted
             print("❌ Failed to create event tap - please grant accessibility permissions")
-            return
+            return .eventTapCreationFailed
         }
 
         // Success! Event tap created
@@ -76,6 +88,7 @@ class InputBlocker: ObservableObject {
 
         isCleaningModeActive = true
         print("✅ Cleaning mode activated - keyboard, trackpad, and mouse clicks are now blocked")
+        return nil
     }
 
     func stopCleaningMode() {
