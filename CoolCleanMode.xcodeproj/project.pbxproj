@@ -18,10 +18,10 @@
 		A2000001000000000000001 /* CoolCleanModeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoolCleanModeApp.swift; sourceTree = "<group>"; };
 		A2000002000000000000001 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A2000003000000000000001 /* InputBlocker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputBlocker.swift; sourceTree = "<group>"; };
-		A2000007000000000000001 /* WindowLevelHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowLevelHelper.swift; sourceTree = "<group>"; };
 		A2000004000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A2000005000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A2000006000000000000001 /* CoolCleanMode.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CoolCleanMode.entitlements; sourceTree = "<group>"; };
+		A2000007000000000000001 /* WindowLevelHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowLevelHelper.swift; sourceTree = "<group>"; };
 		A3000001000000000000001 /* CoolClean Mode.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "CoolClean Mode.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -278,7 +278,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -308,7 +308,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEAD_CODE_STRIPPING = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;

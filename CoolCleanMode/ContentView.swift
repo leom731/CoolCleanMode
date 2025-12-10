@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct ContentView: View {
     @StateObject private var inputBlocker = InputBlocker()
@@ -170,6 +171,7 @@ struct ContentView: View {
             .padding(40)
         }
         .frame(width: 600, height: 700)
+        .windowLevel(inputBlocker.isCleaningModeActive ? .floating : .normal)
         .alert(item: $activationError) { error in
             switch error {
             case .accessibilityNotGranted:
@@ -201,7 +203,7 @@ struct ContentView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     Text("1. In System Settings → Privacy & Security → Accessibility, unlock to make changes.")
-                    Text("2. Click the + button, choose CoolClean Mode.app, and click Open.")
+                    Text("2. Click the + button, choose CoolClean Mode.app, and click Open. (You can also drag the app from Finder into the list.)")
                     Text("3. Toggle CoolClean Mode on.")
                     Text("4. Return here and tap Start Cleaning Mode again.")
                 }
