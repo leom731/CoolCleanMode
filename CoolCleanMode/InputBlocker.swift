@@ -26,6 +26,11 @@ class InputBlocker: ObservableObject {
     // Key combo: Ctrl+Opt+Cmd+K
     private let exitModifierFlags: CGEventFlags = [.maskControl, .maskAlternate, .maskCommand]
     private let exitKeyCode: CGKeyCode = 40 // K key
+    private let screenshotModifierFlags: CGEventFlags = [.maskCommand, .maskShift]
+    private let screenshotKeyCode: CGKeyCode = 21 // 4 key
+    private let screenshotSessionTimeout: TimeInterval = 20
+    private var isScreenshotSessionActive = false
+    private var screenshotSessionResetWorkItem: DispatchWorkItem?
     private let accessibilityPromptOptions: CFDictionary = [
         kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
     ] as CFDictionary
@@ -102,6 +107,7 @@ class InputBlocker: ObservableObject {
             CFRunLoopRemoveSource(CFRunLoopGetCurrent(), source, .commonModes)
         }
 
+        stopScreenshotSession()
         eventTap = nil
         runLoopSource = nil
         isCleaningModeActive = false
@@ -116,9 +122,7 @@ class InputBlocker: ObservableObject {
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
 
             if type == .keyDown &&
-               flags.contains(.maskControl) &&
-               flags.contains(.maskAlternate) &&
-               flags.contains(.maskCommand) &&
+               flags.contains(exitModifierFlags) &&
                keyCode == Int64(exitKeyCode) {
                 // Exit combo detected
                 DispatchQueue.main.async {
@@ -127,18 +131,47 @@ class InputBlocker: ObservableObject {
                 return nil // Block this event
             }
 
+            // Allow system screenshot shortcut (⌘⇧4) to pass through
+            if flags.contains(screenshotModifierFlags) &&
+               keyCode == Int64(screenshotKeyCode) {
+                startScreenshotSession()
+                return Unmanaged.passUnretained(event)
+            }
+
+            // When screenshot HUD is active, allow the supporting keys to flow
+            if isScreenshotSessionActive {
+                refreshScreenshotSessionTimeout()
+
+                if keyCode == Int64(screenshotKeyCode) ||
+                    keyCode == Int64(kVK_Escape) ||
+                    keyCode == Int64(kVK_Space) {
+                    if keyCode == Int64(kVK_Escape) {
+                        stopScreenshotSession()
+                    }
+                    return Unmanaged.passUnretained(event)
+                }
+            }
+
             // Block all other keyboard events
             return nil
         }
 
         // Handle modifier flags changes
         if type == .flagsChanged {
+            if isScreenshotSessionActive {
+                refreshScreenshotSessionTimeout()
+                return Unmanaged.passUnretained(event)
+            }
             // Block flag changes to prevent modifier keys from doing anything
             return nil
         }
 
         // Block scroll wheel events (trackpad scrolling)
         if type == .scrollWheel {
+            if isScreenshotSessionActive {
+                refreshScreenshotSessionTimeout()
+                return Unmanaged.passUnretained(event)
+            }
             return nil
         }
 
@@ -147,12 +180,42 @@ class InputBlocker: ObservableObject {
         if type == .leftMouseDown || type == .leftMouseUp ||
            type == .rightMouseDown || type == .rightMouseUp ||
            type == .leftMouseDragged || type == .rightMouseDragged {
+            if isScreenshotSessionActive {
+                if type == .leftMouseUp || type == .rightMouseUp {
+                    stopScreenshotSession()
+                } else {
+                    refreshScreenshotSessionTimeout()
+                }
+                return Unmanaged.passUnretained(event)
+            }
             return nil // Block all clicks
         }
 
         // Allow cursor movement (so you can see the mouse is still working)
         // but all clicking is disabled
         return Unmanaged.passUnretained(event)
+    }
+
+    // Allows a short window for screenshot interactions without fully exiting clean mode
+    private func startScreenshotSession() {
+        isScreenshotSessionActive = true
+        refreshScreenshotSessionTimeout()
+    }
+
+    private func refreshScreenshotSessionTimeout() {
+        screenshotSessionResetWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.isScreenshotSessionActive = false
+            self?.screenshotSessionResetWorkItem = nil
+        }
+        screenshotSessionResetWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + screenshotSessionTimeout, execute: workItem)
+    }
+
+    private func stopScreenshotSession() {
+        isScreenshotSessionActive = false
+        screenshotSessionResetWorkItem?.cancel()
+        screenshotSessionResetWorkItem = nil
     }
 
     deinit {
