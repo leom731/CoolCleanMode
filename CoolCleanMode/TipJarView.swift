@@ -6,10 +6,13 @@
 //
 
 import SwiftUI
+import StoreKit
 
 struct TipJarView: View {
     @Binding var isPresented: Bool
+    @StateObject private var storeKitManager = StoreKitManager()
     @State private var selectedAmount: TipAmount?
+    @State private var showThankYou = false
 
     var body: some View {
         VStack(spacing: 24) {
@@ -28,7 +31,7 @@ struct TipJarView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
             }
-            .padding(.top, 20)
+            .padding(.top, 36)
 
             Divider()
                 .padding(.horizontal)
@@ -40,32 +43,52 @@ struct TipJarView: View {
                     .foregroundColor(.secondary)
 
                 HStack(spacing: 16) {
-                    TipButton(amount: .small, selectedAmount: $selectedAmount)
-                    TipButton(amount: .medium, selectedAmount: $selectedAmount)
-                    TipButton(amount: .large, selectedAmount: $selectedAmount)
+                    TipButton(
+                        amount: .small,
+                        selectedAmount: $selectedAmount,
+                        product: storeKitManager.products.first { $0.id == TipAmount.small.productID }
+                    )
+                    TipButton(
+                        amount: .medium,
+                        selectedAmount: $selectedAmount,
+                        product: storeKitManager.products.first { $0.id == TipAmount.medium.productID }
+                    )
+                    TipButton(
+                        amount: .large,
+                        selectedAmount: $selectedAmount,
+                        product: storeKitManager.products.first { $0.id == TipAmount.large.productID }
+                    )
                 }
                 .padding(.horizontal)
             }
 
             // Purchase Button
-            if selectedAmount != nil {
+            if let selectedAmount {
                 Button(action: {
-                    // TODO: Implement StoreKit purchase
-                    // For now, just show a thank you message
-                    isPresented = false
+                    Task {
+                        await purchaseSelectedTip()
+                    }
                 }) {
                     HStack {
-                        Image(systemName: "heart.fill")
-                        Text("Send Tip")
+                        if case .purchasing = storeKitManager.purchaseState {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .tint(.white)
+                        } else {
+                            Image(systemName: "heart.fill")
+                        }
+
+                        Text(buttonText)
                     }
                     .font(.headline)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color.blue)
+                    .background(buttonColor)
                     .cornerRadius(12)
                 }
                 .buttonStyle(.plain)
+                .disabled(isPurchasing)
                 .padding(.horizontal)
                 .transition(.scale.combined(with: .opacity))
             }
@@ -93,6 +116,68 @@ struct TipJarView: View {
         }
         .frame(width: 400, height: 500)
         .animation(.spring(response: 0.3), value: selectedAmount)
+        .alert("Thank You!", isPresented: $showThankYou) {
+            Button("You're Welcome!") {
+                isPresented = false
+            }
+        } message: {
+            Text("Your support means the world! Thank you for helping keep CoolClean free and awesome.")
+        }
+        .alert("Purchase Error", isPresented: .constant(storeKitManager.errorMessage != nil)) {
+            Button("OK") {
+                storeKitManager.resetPurchaseState()
+            }
+        } message: {
+            if let errorMessage = storeKitManager.errorMessage {
+                Text(errorMessage)
+            }
+        }
+        .onChange(of: storeKitManager.purchaseState) { _, newState in
+            if case .purchased = newState {
+                showThankYou = true
+                storeKitManager.resetPurchaseState()
+            }
+        }
+    }
+
+    // MARK: - Helper Methods
+
+    private func purchaseSelectedTip() async {
+        guard let selectedAmount,
+              let product = storeKitManager.products.first(where: { $0.id == selectedAmount.productID }) else {
+            return
+        }
+
+        await storeKitManager.purchase(product)
+    }
+
+    // MARK: - Computed Properties
+
+    private var isPurchasing: Bool {
+        if case .purchasing = storeKitManager.purchaseState {
+            return true
+        }
+        return false
+    }
+
+    private var buttonText: String {
+        if case .purchasing = storeKitManager.purchaseState {
+            return "Processing..."
+        }
+
+        if let selectedAmount,
+           let product = storeKitManager.products.first(where: { $0.id == selectedAmount.productID }) {
+            return "Send \(product.displayPrice) Tip"
+        }
+
+        return "Send Tip"
+    }
+
+    private var buttonColor: Color {
+        if case .purchasing = storeKitManager.purchaseState {
+            return Color.blue.opacity(0.6)
+        }
+        return Color.blue
     }
 }
 
@@ -128,9 +213,14 @@ enum TipAmount: String, CaseIterable {
 struct TipButton: View {
     let amount: TipAmount
     @Binding var selectedAmount: TipAmount?
+    let product: Product?
 
     var isSelected: Bool {
         selectedAmount == amount
+    }
+
+    var displayPrice: String {
+        product?.displayPrice ?? amount.displayName
     }
 
     var body: some View {
@@ -138,7 +228,7 @@ struct TipButton: View {
             selectedAmount = amount
         }) {
             VStack(spacing: 8) {
-                Text(amount.displayName)
+                Text(displayPrice)
                     .font(.title2.bold())
                     .foregroundColor(isSelected ? .white : .primary)
 
@@ -158,6 +248,8 @@ struct TipButton: View {
             )
         }
         .buttonStyle(.plain)
+        .disabled(product == nil)
+        .opacity(product == nil ? 0.5 : 1.0)
     }
 }
 

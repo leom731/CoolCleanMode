@@ -181,11 +181,3 @@ class StoreKitManager: ObservableObject {
     }
 }
 
-// MARK: - Product Extensions
-
-extension Product {
-    /// Returns a user-friendly display price
-    var displayPrice: String {
-        return displayPrice
-    }
-}
