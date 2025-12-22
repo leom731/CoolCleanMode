@@ -14,8 +14,6 @@ struct ContentView: View {
     @State private var activationError: InputBlockerActivationError?
     @State private var showAccessibilityHelp = false
     @State private var showTipJar = false
-    @State private var checkingForUpdate = false
-    @State private var updateCheckResult: UpdateCheckResult?
 
     var body: some View {
         ZStack {
@@ -128,45 +126,7 @@ struct ContentView: View {
                             .multilineTextAlignment(.center)
                     }
                     .padding(.top, 20)
-
-                    // Update Check Section
-                    VStack(spacing: 8) {
-                        Button(action: {
-                            Task {
-                                await checkForUpdate()
-                            }
-                        }) {
-                            HStack(spacing: 6) {
-                                if checkingForUpdate {
-                                    ProgressView()
-                                        .scaleEffect(0.6)
-                                        .frame(width: 12, height: 12)
-                                } else {
-                                    Image(systemName: "arrow.down.circle")
-                                        .font(.system(size: 12))
-                                }
-                                Text("Check for Update")
-                                    .font(.system(size: 13, weight: .medium))
-                            }
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(Color.secondary.opacity(0.1))
-                            .cornerRadius(8)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(checkingForUpdate)
-
-                        // Update status message
-                        if let result = updateCheckResult {
-                            Text(result.message)
-                                .font(.system(size: 10))
-                                .foregroundColor(result.isUpdateAvailable ? .blue : .secondary.opacity(0.7))
-                                .transition(.opacity)
-                        }
-                    }
                     .padding(.top, 30)
-                    .animation(.easeInOut(duration: 0.2), value: updateCheckResult)
 
                 } else {
                     // Instructions when active
@@ -300,72 +260,6 @@ struct ContentView: View {
         .sheet(isPresented: $showTipJar) {
             TipJarView(isPresented: $showTipJar)
         }
-        .alert("Update Available", isPresented: .constant(updateCheckResult?.isUpdateAvailable == true)) {
-            Button("View on App Store") {
-                if let url = updateCheckResult?.appStoreURL {
-                    NSWorkspace.shared.open(url)
-                }
-                updateCheckResult = nil
-            }
-            Button("Not Now") {
-                updateCheckResult = nil
-            }
-        } message: {
-            if let result = updateCheckResult {
-                Text("Version \(result.latestVersion) is available. You're currently on v1.0.")
-            }
-        }
-    }
-
-    // MARK: - Update Check
-
-    private func checkForUpdate() async {
-        checkingForUpdate = true
-        updateCheckResult = nil
-
-        // Add a small delay to show the loading state
-        try? await Task.sleep(nanoseconds: 500_000_000)
-
-        do {
-            let result = try await UpdateChecker.checkForUpdate(
-                bundleIdentifier: "com.coolcleanmode.app",
-                currentVersion: "1.0"
-            )
-            updateCheckResult = result
-        } catch {
-            // Log detailed error for debugging
-            print("❌ Update check error: \(error)")
-            print("❌ Error details: \(error.localizedDescription)")
-
-            // Better error messages based on the error type
-            let errorMessage: String
-            if let urlError = error as? URLError {
-                switch urlError.code {
-                case .notConnectedToInternet, .networkConnectionLost:
-                    errorMessage = "No internet connection"
-                case .timedOut:
-                    errorMessage = "Request timed out"
-                case .badServerResponse:
-                    errorMessage = "App Store not responding"
-                default:
-                    errorMessage = "Network error"
-                }
-            } else if let decodingError = error as? DecodingError {
-                errorMessage = "Invalid response format"
-                print("❌ Decoding error: \(decodingError)")
-            } else {
-                errorMessage = "Could not check for updates"
-            }
-
-            updateCheckResult = UpdateCheckResult(
-                isUpdateAvailable: false,
-                latestVersion: "1.0",
-                message: errorMessage,
-                appStoreURL: nil
-            )
-        }
-
-        checkingForUpdate = false
     }
 }
 
@@ -760,111 +654,6 @@ class StoreKitManager: ObservableObject {
     var hasLoadedProducts: Bool {
         !products.isEmpty
     }
-}
-
-// MARK: - Update Check Models
-
-struct UpdateCheckResult: Equatable {
-    let isUpdateAvailable: Bool
-    let latestVersion: String
-    let message: String
-    let appStoreURL: URL?
-}
-
-// MARK: - Update Checker
-
-struct UpdateChecker {
-    static func checkForUpdate(bundleIdentifier: String, currentVersion: String) async throws -> UpdateCheckResult {
-        // iTunes Search API endpoint
-        let urlString = "https://itunes.apple.com/lookup?bundleId=\(bundleIdentifier)"
-        print("🔍 Checking for updates at: \(urlString)")
-
-        guard let url = URL(string: urlString) else {
-            print("❌ Invalid URL")
-            throw URLError(.badURL)
-        }
-
-        // Fetch app info from iTunes API
-        print("📡 Fetching data from iTunes API...")
-        let (data, response) = try await URLSession.shared.data(from: url)
-
-        // Check for valid HTTP response
-        guard let httpResponse = response as? HTTPURLResponse else {
-            print("❌ Invalid HTTP response")
-            throw URLError(.badServerResponse)
-        }
-
-        print("✅ HTTP Status: \(httpResponse.statusCode)")
-
-        guard httpResponse.statusCode == 200 else {
-            print("❌ Bad status code: \(httpResponse.statusCode)")
-            throw URLError(.badServerResponse)
-        }
-
-        // Log raw response for debugging
-        if let jsonString = String(data: data, encoding: .utf8) {
-            print("📦 API Response: \(jsonString)")
-        }
-
-        let apiResponse = try JSONDecoder().decode(iTunesResponse.self, from: data)
-        print("✅ Decoded response: \(apiResponse.resultCount) results")
-
-        // If app not found on App Store (development/pre-release version)
-        guard let appInfo = apiResponse.results.first else {
-            return UpdateCheckResult(
-                isUpdateAvailable: false,
-                latestVersion: currentVersion,
-                message: "Not yet on App Store",
-                appStoreURL: nil
-            )
-        }
-
-        let latestVersion = appInfo.version
-        let isUpdateAvailable = compareVersions(current: currentVersion, latest: latestVersion)
-
-        let message = isUpdateAvailable
-            ? "Update available: v\(latestVersion)"
-            : "You're up to date!"
-
-        return UpdateCheckResult(
-            isUpdateAvailable: isUpdateAvailable,
-            latestVersion: latestVersion,
-            message: message,
-            appStoreURL: URL(string: appInfo.trackViewUrl)
-        )
-    }
-
-    private static func compareVersions(current: String, latest: String) -> Bool {
-        let currentComponents = current.split(separator: ".").compactMap { Int($0) }
-        let latestComponents = latest.split(separator: ".").compactMap { Int($0) }
-
-        let maxLength = max(currentComponents.count, latestComponents.count)
-
-        for i in 0..<maxLength {
-            let currentValue = i < currentComponents.count ? currentComponents[i] : 0
-            let latestValue = i < latestComponents.count ? latestComponents[i] : 0
-
-            if latestValue > currentValue {
-                return true
-            } else if latestValue < currentValue {
-                return false
-            }
-        }
-
-        return false
-    }
-}
-
-// MARK: - iTunes API Response Models
-
-struct iTunesResponse: Codable {
-    let resultCount: Int
-    let results: [AppInfo]
-}
-
-struct AppInfo: Codable {
-    let version: String
-    let trackViewUrl: String
 }
 
 #Preview {
